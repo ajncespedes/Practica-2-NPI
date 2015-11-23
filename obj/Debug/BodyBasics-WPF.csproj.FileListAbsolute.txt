@@ -49,3 +49,19 @@ C:\Users\Antonio\Dropbox\Otros\Carpetas Compartidas\Valenzuela\Practica-2-NPI\ob
 C:\Users\Antonio\Dropbox\Otros\Carpetas Compartidas\Valenzuela\Practica-2-NPI\obj\Debug\BodyBasics-WPF.g.resources
 C:\Users\Antonio\Dropbox\Otros\Carpetas Compartidas\Valenzuela\Practica-2-NPI\obj\Debug\Microsoft.Samples.Kinect.BodyBasics.Properties.Resources.resources
 C:\Users\Antonio\Dropbox\Otros\Carpetas Compartidas\Valenzuela\Practica-2-NPI\obj\Debug\BodyBasics-WPF.csproj.GenerateResource.Cache
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\bin\AnyCPU\Debug\BodyBasics-WPF.exe.config
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\BodyBasics-WPF.exe
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\BodyBasics-WPF.pdb
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\bin\AnyCPU\Debug\BodyBasics-WPF.exe
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\bin\AnyCPU\Debug\BodyBasics-WPF.pdb
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\bin\AnyCPU\Debug\Microsoft.Kinect.dll
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\bin\AnyCPU\Debug\Microsoft.Kinect.xml
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\BodyBasics-WPF.csprojResolveAssemblyReference.cache
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\MainWindow.baml
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\MainWindow.g.cs
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\App.g.cs
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\BodyBasics-WPF_MarkupCompile.cache
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\BodyBasics-WPF.g.resources
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\Microsoft.Samples.Kinect.BodyBasics.Properties.Resources.resources
+C:\Users\Valen\Dropbox\Valensuela y iop\Practica-2-NPI\obj\Debug\BodyBasics-WPF.csproj.GenerateResource.Cache
+C:\Users\Antonio\Dropbox\Otros\Carpetas Compartidas\Valenzuela\Practica-2-NPI\obj\Debug\BodyBasics-WPF_Content.g.cs

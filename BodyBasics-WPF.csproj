@@ -118,8 +118,13 @@
     <Resource Include="Images\Status.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Images\good.png" />
-    <Resource Include="Images\wrong.png" />
+    <Resource Include="Images\forest.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\mirilla.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Images\arco.wav" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

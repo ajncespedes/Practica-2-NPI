@@ -50,6 +50,11 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         private bool PositionDone = false;
 
         /// <summary>
+        /// True if user has the arrow to shot it, false otherwise
+        /// </summary>
+        private bool arrowInHand = false;
+
+        /// <summary>
         /// Radius of concentric circles
         /// </summary>
         private double[] DartBoardRadius = new double[5];
@@ -65,25 +70,30 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         private bool HandClosed = false;
 
         /// <summary>
+        /// True if user selected if he is left or right handed, false otherwise
+        /// </summary>
+        private bool userSelectedHand = false;
+
+        /// <summary>
+        /// True if user is right handed, false otherwise
+        /// </summary>
+        private bool rightHanded = false;
+
+        /// <summary>
+        /// User puntuation
+        /// </summary>
+        private int userTotalPuntuation = 0;
+
+        /// <summary>
+        /// User puntuation if he shots in that moment
+        /// </summary>
+        private int userPointsIfShots = 0;
+
+        /// <summary>
         /// Initial and final point to shot
         /// </summary>
         Joint initShot = new Joint();
         Joint finalShot = new Joint();
-
-        /// <summary>
-        /// True if gesture start is correct, false otherwise
-        /// </summary>
-        private bool GestureStartB = false;
-
-        /// <summary>
-        /// True if gesture end is correct, false otherwise
-        /// </summary>
-        private bool GestureEndB = false;
-
-        /// <summary>
-        /// Number of gestures done
-        /// </summary>
-        private int GesturesDone = 0;
 
         /// <summary>
         /// Radius of drawn hand circles
@@ -104,26 +114,6 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         /// Constant for clamping Z values of camera space points from being negative
         /// </summary>
         private const float InferredZPositionClamp = 0.1f;
-
-        /// <summary>
-        /// Brush used for drawing reached goals
-        /// </summary>
-        private readonly Brush goalReachedBrush = new SolidColorBrush(Color.FromArgb(64, 0, 255, 0));
-
-        /// <summary>
-        /// Brush used for drawing not reached goals
-        /// </summary>
-        private readonly Brush goalNotReachedBrush = new SolidColorBrush(Color.FromArgb(64, 255, 0, 0));
-
-        /// <summary>
-        /// Brush used for drawing gesture line
-        /// </summary>
-        private readonly Brush gestureLineBrush = new SolidColorBrush(Color.FromArgb(150, 255, 215, 0));
-
-        /// <summary>
-        /// Brush used for drawing gesture points
-        /// </summary>
-        private readonly Brush gesturePointBrush = new SolidColorBrush(Color.FromArgb(150, 255, 165, 0));
 
         /// <summary>
         /// Brush used for drawing hands that are currently tracked as closed
@@ -209,6 +199,22 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         /// Current status text to display
         /// </summary>
         private string statusText = null;
+
+        /// <summary>
+        /// Initial milliseconds
+        /// </summary>
+        long currentMilliseconds;
+
+        /// <summary>
+        /// Real gameplay time
+        /// </summary>
+        float time;
+
+        /// <summary>
+        /// True if we have started to play on the dartboard, false otherwise
+        /// </summary>
+        bool activateTime = true;
+
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
@@ -310,7 +316,18 @@ namespace Microsoft.Samples.Kinect.BodyBasics
             //Create center
             DartBoardCenter.Position.X = 0;
             DartBoardCenter.Position.Y = 0;
-            DartBoardCenter.Position.Z = 10;
+            DartBoardCenter.Position.Z = 20;
+            
+            //Initialize initshot
+            initShot.Position.X = 0;
+            initShot.Position.Y = 0;
+            initShot.Position.Z = 0;
+            finalShot.Position.X = 0;
+            finalShot.Position.Y = 0;
+            finalShot.Position.Z = 0;
+
+            //Initialize time different to 0
+            time = 10;
 
         }
 
@@ -397,6 +414,7 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         private void Reader_FrameArrived(object sender, BodyFrameArrivedEventArgs e)
         {
             bool dataReceived = false;
+            bool shoot = false;
 
             using (BodyFrame bodyFrame = e.FrameReference.AcquireFrame())
             {
@@ -419,7 +437,11 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                 using (DrawingContext dc = this.drawingGroup.Open())
                 {
                     // Draw a transparent background to set the render size
-                    dc.DrawRectangle(Brushes.Black, null, new Rect(0.0, 0.0, this.displayWidth, this.displayHeight));
+
+                    System.String bgPath = Path.GetFullPath(@"..\..\..\Images\forest.jpg");
+                    ImageBrush imageBg = new ImageBrush(new BitmapImage(new Uri(bgPath)));
+                    dc.DrawRectangle(imageBg, null, new Rect(0.0, 0.0, this.displayWidth, this.displayHeight));
+                    
 
                     int penIndex = 0;
 
@@ -454,6 +476,8 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                                 jointPoints[jointType] = new Point(depthSpacePoint.X, depthSpacePoint.Y);
                             }
 
+                            JointType userHand = new JointType();
+                            HandState userHandState = new HandState();
 
                             // While position is not correct, draw floor
                             if (HeadHeight == -10)
@@ -461,18 +485,81 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                                 this.DrawBody(joints, jointPoints, dc, drawPen);
                                 HeadHeight = this.DrawFloor(joints[JointType.FootLeft], joints[JointType.FootRight], joints[JointType.Head], dc);
                             }
-
-                            else if (!PositionDone)
+                            else if (userSelectedHand == false)
                             {
+                                string handsAdvice = "Elige diestro para tensar el arco con la mano derecha.\n"+
+                                                     "Elige zurdo para tensar el arco con la mano izquierda.";
+                                FormattedText floorAdviceText = new FormattedText(handsAdvice, CultureInfo.GetCultureInfo("en-us"),
+                                FlowDirection.LeftToRight, new Typeface("Arial Black"), 17, Brushes.DarkBlue);
+                                dc.DrawText(floorAdviceText, new Point(10, 20));
+                                this.DrawBody(joints, jointPoints, dc, drawPen);
+                                //User must select if he is left or right handed: Show buttons:
+                                System.String leftPath = Path.GetFullPath(@"..\..\..\Images\leftHanded.png");
+                                if (jointPoints[JointType.HandLeft].X > 100 && jointPoints[JointType.HandLeft].X < (100 + 100) &&
+                                    jointPoints[JointType.HandLeft].Y > 150 && jointPoints[JointType.HandLeft].Y < 200)
+                                {
+                                    leftPath = Path.GetFullPath(@"..\..\..\Images\leftHanded2.png");
+                                }
+                                BitmapImage leftImage = new BitmapImage();
+                                leftImage.BeginInit();
+                                leftImage.UriSource = new Uri(leftPath);
+                                leftImage.EndInit();
+                                dc.DrawImage(leftImage, new Rect(100, 150, 100, 50));
 
-                                if (body.HandRightState == HandState.Closed && !HandClosed)
+
+                                System.String rightPath = Path.GetFullPath(@"..\..\..\Images\rightHanded.png");
+                                if (jointPoints[JointType.HandRight].X > (displayWidth - 200) && jointPoints[JointType.HandRight].X < ((displayWidth - 200) + 100) &&
+                                    jointPoints[JointType.HandRight].Y > 150 && jointPoints[JointType.HandRight].Y < 200)
+                                {
+                                    rightPath = Path.GetFullPath(@"..\..\..\Images\rightHanded2.png");
+                                }
+                                BitmapImage rightImage = new BitmapImage();
+                                rightImage.BeginInit();
+                                rightImage.UriSource = new Uri(rightPath);
+                                rightImage.EndInit();
+                                dc.DrawImage(rightImage, new Rect(displayWidth - 200, 150, 100, 50));
+
+                                //Test if user closed his hand in a button:
+                                //Left handed:
+                                if (jointPoints[JointType.HandLeft].X > 100 && jointPoints[JointType.HandLeft].X < (100 + 100) &&
+                                    jointPoints[JointType.HandLeft].Y > 150 && jointPoints[JointType.HandLeft].Y < 200 &&
+                                    body.HandLeftState == HandState.Closed)
+                                {
+                                    userSelectedHand = true;
+                                    rightHanded = false;
+                                }
+                                //Right handed:
+                                else if (jointPoints[JointType.HandRight].X > (displayWidth - 200) && jointPoints[JointType.HandRight].X < ((displayWidth - 200) + 100) &&
+                                    jointPoints[JointType.HandRight].Y > 150 && jointPoints[JointType.HandRight].Y < 200 &&
+                                    body.HandRightState == HandState.Closed)
+                                {
+                                    userSelectedHand = true;
+                                    rightHanded = true;
+                                }
+                            }
+                            //User positioned and his hand is selected: Start the game
+                            else if(time>0)
+                            {
+                                Joint shotImpactPoint = new Joint();
+                                if (rightHanded)
+                                {
+                                    userHand = JointType.HandRight;
+                                    userHandState = body.HandRightState;
+                                }
+                                else
+                                {
+                                    userHand = JointType.HandLeft;
+                                    userHandState = body.HandLeftState;
+                                }
+                                if (userHandState == HandState.Closed && !HandClosed)
                                 {
                                     HandClosed = true;
-                                    initShot.Position.X = joints[JointType.HandRight].Position.X;
-                                    initShot.Position.Y = joints[JointType.HandRight].Position.Y;
-                                    initShot.Position.Z = joints[JointType.HandRight].Position.Z;
-                                    gestureText.Text = "Has cerrado la mano";
-
+                                    initShot.Position.X = joints[userHand].Position.X;
+                                    initShot.Position.Y = joints[userHand].Position.Y;
+                                    initShot.Position.Z = joints[userHand].Position.Z;
+                                    finalShot.Position.X = joints[userHand].Position.X;
+                                    finalShot.Position.Y = joints[userHand].Position.Y;
+                                    finalShot.Position.Z = joints[userHand].Position.Z;
                                 }
                                 else if (!HandClosed)
                                 {
@@ -481,86 +568,143 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                                     initShot.Position.Z = 0;
                                     finalShot.Position.X = 0;
                                     finalShot.Position.Y = 0;
-                                    finalShot.Position.Z = 2;
-                                    gestureText.Text = "Cierra la mano!";
+                                    finalShot.Position.Z = 0;
                                 }
-                                if (HandClosed && body.HandRightState == HandState.Closed)
+                                else if (HandClosed && userHandState == HandState.Closed)
                                 {
-                                    finalShot.Position.X = joints[JointType.HandRight].Position.X;
-                                    finalShot.Position.Y = joints[JointType.HandRight].Position.Y;
-                                    finalShot.Position.Z = joints[JointType.HandRight].Position.Z;
+                                    finalShot.Position.X = joints[userHand].Position.X;
+                                    finalShot.Position.Y = joints[userHand].Position.Y;
+                                    finalShot.Position.Z = joints[userHand].Position.Z;
                                 }
-
-                                if (HandClosed && body.HandRightState == HandState.Open)
+                                else if (HandClosed && userHandState == HandState.Open)
                                 {
                                     HandClosed = false;
-                                    advicesText.Text = "Disparo";
-                                    finalShot.Position.X = joints[JointType.HandRight].Position.X;
-                                    finalShot.Position.Y = joints[JointType.HandRight].Position.Y;
-                                    finalShot.Position.Z = joints[JointType.HandRight].Position.Z;
-                                    
+                                    shoot = true;
+                                    finalShot.Position.X = joints[userHand].Position.X;
+                                    finalShot.Position.Y = joints[userHand].Position.Y;
+                                    finalShot.Position.Z = joints[userHand].Position.Z;
                                 }
-                                
-                                DrawDartBoard(initShot, finalShot, dc);
+                                if (arrowInHand)
+                                {
+                                    //Show that user has the arrow
+                                    System.String arrowPath = Path.GetFullPath(@"..\..\..\Images\arrow.png");
+                                    BitmapImage arrowImage = new BitmapImage();
+                                    arrowImage.BeginInit();
+                                    arrowImage.UriSource = new Uri(arrowPath);
+                                    arrowImage.EndInit();
+                                    dc.DrawImage(arrowImage, new Rect(this.displayWidth - 80, 10, 80, 80));
 
+                                    string showAdvice;
+                                    if (rightHanded)
+                                    {
+                                        showAdvice = "Apunta con la mano izquierda.\n";
+                                    }
+                                    else
+                                    {
+                                        showAdvice = "Apunta con la mano derecha.\n";
+                                    }
+                                    
+                                    if (initShot.Position.Z < finalShot.Position.Z)
+                                    {
+                                        if (rightHanded)
+                                        {
+                                            showAdvice = showAdvice + "Tensa la cuerda cerrando la mano\nderecha y llevándola hacia atrás.";
+                                        }
+                                        else
+                                        {
+                                            showAdvice = showAdvice + "Tensa la cuerda cerrando la mano\nizquierda y llevándola hacia atrás.";
+                                        }
+                                        if (shoot)
+                                        {
+                                            arrowInHand = false;
+                                            //Calculate shot points:
+                                            userTotalPuntuation += userPointsIfShots;
+                                            shoot = false;
+                                            //Sum up seconds depending on the puntuation
+                                            currentMilliseconds += (long)userPointsIfShots * 1000 / 3;
+                                        }
+                                        else
+                                        {
+                                            shotImpactPoint = DrawDartBoard(initShot, finalShot, joints, dc);
+                                            userPointsIfShots = computeShotPoints(shotImpactPoint);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // If he charge forward or doesn't charge, draw initial dardboard saving the initial point
+                                        DrawDartBoard(initShot, initShot, joints, dc);
+                                    }
+                                    //Advices to posicionate
+                                    FormattedText floorAdviceText = new FormattedText(showAdvice, CultureInfo.GetCultureInfo("en-us"),
+                                    FlowDirection.LeftToRight, new Typeface("Arial Black"), 25, Brushes.DarkBlue);
+                                    dc.DrawText(floorAdviceText, new Point(20, this.displayHeight - 100));
+                                }
+                                else if (!arrowInHand)
+                                {
+                                    string arrowAdvice = "¡Coge una flecha!";
+                                    FormattedText floorAdviceText = new FormattedText(arrowAdvice, CultureInfo.GetCultureInfo("en-us"),
+                                    FlowDirection.LeftToRight, new Typeface("Arial Black"), 30, Brushes.DarkBlue);
+                                    dc.DrawText(floorAdviceText, new Point(20, this.displayHeight - 120));
+                                    //Show that user has NOT the arrow
+                                    System.String noArrowPath = Path.GetFullPath(@"..\..\..\Images\noArrow.png");
+                                    BitmapImage noArrowImage = new BitmapImage();
+                                    noArrowImage.BeginInit();
+                                    noArrowImage.UriSource = new Uri(noArrowPath);
+                                    noArrowImage.EndInit();
+                                    dc.DrawImage(noArrowImage, new Rect(this.displayWidth - 80, 10, 80, 80));
 
+                                    //User has to take an arrow to shot it
+                                    arrowInHand = GetArrow(joints[userHand], joints[JointType.Neck]);
 
-                                // aqui estamos
-                                System.String imgPath = Path.GetFullPath(@"..\..\..\Images\good.png");
-                                position.Source = new BitmapImage(new Uri(imgPath));
+                                    DrawDartBoard(initShot, initShot, joints, dc);
+                                }
 
                             }
-                            //If the position is detected, start gesture recognition:
+                            // If time is over
                             else
                             {
-                                System.String imgPath = Path.GetFullPath(@"..\..\..\Images\good.png");
-                                posture.Source = new BitmapImage(new Uri(imgPath));
+                                //Showing TIME OVER
+                                FormattedText timeOverText = new FormattedText("TIME OVER", CultureInfo.GetCultureInfo("en-us"),
+                                FlowDirection.LeftToRight, new Typeface("Arial Black"), 65, Brushes.Red);
+                                dc.DrawText(timeOverText, new Point(60, 300));
 
-                                //Define gesture start point:
-                                Joint gesture_start = new Joint();
-                                gesture_start.Position.X = (float)FloorCenterX + 0.3f;
-                                gesture_start.Position.Y = (float)HeadHeight - 0.25f;
-                                gesture_start.Position.Z = (float)FloorCenterZ - 0.4f;
-                                //Define the gesture with new goal:
-                                Joint gesture_end = new Joint();
-                                gesture_end.Position.X = (float)FloorCenterX - 0.2f;
-                                gesture_end.Position.Y = (float)HeadHeight - 0.25f;
-                                gesture_end.Position.Z = (float)FloorCenterZ - 0.4f;
+                                //Showing user points:
+                                FormattedText userPointsText = new FormattedText("Puntuación Final: " + userTotalPuntuation, CultureInfo.GetCultureInfo("en-us"),
+                                FlowDirection.LeftToRight, new Typeface("Arial Black"), 36, Brushes.DarkBlue);
+                                dc.DrawText(userPointsText, new Point(70, 250));
 
-                                if (!GestureStartB)
+                                this.DrawBody(joints, jointPoints, dc, drawPen);
+                                //User must select if he is left or right handed: Show buttons:
+                                System.String restartPath = Path.GetFullPath(@"..\..\..\Images\restart.png");
+                                if ((jointPoints[JointType.HandRight].X > 160 && jointPoints[JointType.HandRight].X < (160 + 150) &&
+                                    jointPoints[JointType.HandRight].Y > 50 && jointPoints[JointType.HandRight].Y < 150) ||
+                                    (jointPoints[JointType.HandLeft].X > 160 && jointPoints[JointType.HandLeft].X < (160 + 150) &&
+                                    jointPoints[JointType.HandLeft].Y > 50 && jointPoints[JointType.HandLeft].Y < 150 ))
                                 {
-                                    GestureStartB = this.DrawGesturePoint(gesture_start, joints[JointType.HandRight], dc);
+                                    restartPath = Path.GetFullPath(@"..\..\..\Images\restart2.png");
                                 }
-                                //We have to reach the new goal without going out of the limits (up and down)
-                                else if (
-                                    joints[JointType.HandRight].Position.Y > gesture_start.Position.Y + 0.2 ||
-                                    joints[JointType.HandRight].Position.Y < gesture_start.Position.Y - 0.2 ||
-                                    joints[JointType.HandRight].Position.X > gesture_start.Position.X + 0.1)
-                                {
-                                    GestureStartB = false;
-                                }
-                                else
-                                {
-                                    GestureEndB = this.DrawGesturePoint(gesture_end, joints[JointType.HandRight], dc);
-                                    //Draw the line to help the user:
-                                    DepthSpacePoint gesture_start_depth = this.coordinateMapper.MapCameraPointToDepthSpace(joints[JointType.HandRight].Position);
-                                    Point gesture_start_2D = new Point(gesture_start_depth.X, gesture_start_depth.Y);
-                                    DepthSpacePoint gesture_end_depth = this.coordinateMapper.MapCameraPointToDepthSpace(gesture_end.Position);
-                                    Point gesture_end_2D = new Point(gesture_end_depth.X, gesture_end_depth.Y);
-                                    Pen line_pen = new Pen(gestureLineBrush, 10);
-                                    dc.DrawLine(line_pen, gesture_start_2D, gesture_end_2D);
-                                    //If we reach the second goal without moving out, add +1 and reset
-                                    if (GestureEndB)
-                                    {
-                                        GesturesDone++;
-                                        gestureText.Text = Convert.ToString(GesturesDone);
-                                        GestureStartB = false;
-                                        GestureEndB = false;
-                                    }
-                                }
+                                BitmapImage restartImage = new BitmapImage();
+                                restartImage.BeginInit();
+                                restartImage.UriSource = new Uri(restartPath);
+                                restartImage.EndInit();
+                                dc.DrawImage(restartImage, new Rect(160, 50, 150, 100));
 
+                                //Test if user closed his hand in a button:
+                                if ((jointPoints[JointType.HandRight].X > 160 && jointPoints[JointType.HandRight].X < (160 + 150) &&
+                                    jointPoints[JointType.HandRight].Y > 50 && jointPoints[JointType.HandRight].Y < 150 &&
+                                    body.HandRightState == HandState.Closed) ||
+                                    (jointPoints[JointType.HandLeft].X > 160 && jointPoints[JointType.HandLeft].X < (160 + 150) &&
+                                    jointPoints[JointType.HandLeft].Y > 50 && jointPoints[JointType.HandLeft].Y < 150 &&
+                                    body.HandLeftState == HandState.Closed))
+                                {
+                                    //Restart the variables
+                                    activateTime = true;
+                                    userSelectedHand = false;
+                                    arrowInHand = false;
+                                    userTotalPuntuation = 0;
+                                    time = 10;
+                                }
                             }
-
                         }
                     }
 
@@ -665,37 +809,61 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         }
 
 
-
         /// <summary>
-        /// Draws an ellipse in the posture goal
+        /// Recognise if user takes an arrow
         /// </summary>
-        /// <param name="goal">position of the hand</param>
-        /// <param name="hand">position of the hand</param>
-        /// <param name="drawingContext">drawing context to draw to</param>
-        private bool DrawGoal(Joint goal, Joint hand, DrawingContext drawingContext)
+        /// <param name="userHand">user hand</param>
+        /// <param name="userNeck">user neck</param>
+        bool GetArrow(Joint userHand, Joint userNeck)
         {
-            // New factor to give deep feeling being bigger or closer
-            double ellipseSize = 2.0 / goal.Position.Z;
-            // Transform world coordinates to screen coordinates
-            DepthSpacePoint depth_goal = this.coordinateMapper.MapCameraPointToDepthSpace(goal.Position);
-            Point goal_2D = new Point(depth_goal.X, depth_goal.Y);
-
-            // If the hand is inside of the goal, the ellipse change it color to red
-            if ((hand.Position.X < goal.Position.X + 0.05 && hand.Position.X > goal.Position.X - 0.05) &&
-                (hand.Position.Y < goal.Position.Y + 0.05 && hand.Position.Y > goal.Position.Y - 0.05) &&
-                (hand.Position.Z < goal.Position.Z + 0.05 && hand.Position.Z > goal.Position.Z - 0.05))
+            //Gesture to take a arrow
+            if(userHand.Position.Z >= userNeck.Position.Z && userHand.Position.Y >= userNeck.Position.Y)
             {
-                drawingContext.DrawEllipse(this.goalReachedBrush, null, goal_2D, ellipseSize * HandSize, ellipseSize * HandSize);
                 return true;
             }
-            // If not, the ellipse change it color to red
             else
             {
-                drawingContext.DrawEllipse(this.goalNotReachedBrush, null, goal_2D, ellipseSize * HandSize, ellipseSize * HandSize);
+                return false;
             }
-            return false;
         }
-        
+
+
+        /// <summary>
+        /// Calculate points of the shot
+        /// </summary>
+        /// <param name="shot">Joint where shot impacted</param>
+        int computeShotPoints(Joint shot)
+        {
+            //Calculate module from shot to center
+            double module = Math.Sqrt((shot.Position.X - DartBoardCenter.Position.X) * (shot.Position.X - DartBoardCenter.Position.X) +
+            (shot.Position.Y - DartBoardCenter.Position.Y) * (shot.Position.Y - DartBoardCenter.Position.Y));
+            //Return points:
+            if (module < 0.5)
+            {
+                return 10;
+            }
+            else if(module < 1)
+            {
+                return 5;
+            }
+            else if (module < 1.5)
+            {
+                return 3;
+            }
+            else if (module < 2)
+            {
+                return 2;
+            }
+            else if (module < 2.5)
+            {
+                return 1;
+            }
+            else
+            {
+                return -5;
+            }
+        }
+
 
         /// <summary>
         /// Draws an ellipse in the posture goal
@@ -703,59 +871,127 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         /// <param name="goal">position of the hand</param>
         /// <param name="hand">position of the hand</param>
         /// <param name="drawingContext">drawing context to draw to</param>
-        private void DrawDartBoard(Joint initialHand, Joint currentHand, DrawingContext drawingContext)
+        private Joint DrawDartBoard(Joint initialHand, Joint currentHand, IReadOnlyDictionary<JointType, Joint> joints, DrawingContext drawingContext)
         {
-            double factor = Math.Sqrt((currentHand.Position.X - initialHand.Position.X)*(currentHand.Position.X - initialHand.Position.X) +
-                                      (currentHand.Position.Y - initialHand.Position.Y)*(currentHand.Position.Y - initialHand.Position.Y) +
-                                      (currentHand.Position.Z - initialHand.Position.Z)*(currentHand.Position.Z - initialHand.Position.Z));
-            factor *= 30;
 
+            if (activateTime)
+            {
+                //Initial milliseconds, 30 seconds from now
+                currentMilliseconds = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond + (long)30000;
+                activateTime = false;
+            }
+
+            //Angles of 3D parabolic movement
+            float alpha;
+            float beta;
+            
+            //Point where arrow will impact if user throws it
+            Joint impactPoint = new Joint();
 
             // Convert 3D to 2D
             DepthSpacePoint depth_center = this.coordinateMapper.MapCameraPointToDepthSpace(DartBoardCenter.Position);
             Point center_2D = new Point(depth_center.X, depth_center.Y);
 
-            ///// Si movemos la mano hacia alante, que no aumente el tamaño de la diana!//////////////////////////////////////////////////////////
-            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 0, 0)),     null, center_2D, DartBoardRadius[4] * factor , DartBoardRadius[4] * factor);
-            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 255, 255)), null, center_2D, DartBoardRadius[3] * factor , DartBoardRadius[3] * factor);
-            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 0, 0)),     null, center_2D, DartBoardRadius[2] * factor , DartBoardRadius[2] * factor);
-            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 255, 255)), null, center_2D, DartBoardRadius[1] * factor , DartBoardRadius[1] * factor);
-            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 0, 0)),     null, center_2D, DartBoardRadius[0] * factor , DartBoardRadius[0] * factor);
-            
-            
+            //Control the countdown
+            long milliseconds = currentMilliseconds - DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+
+            time = (float) milliseconds / 1000;
+
+            //Size of the board
+            double factor = 400.0 / DartBoardCenter.Position.Z;
+
+            //Draw the dartboard
+            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 0, 0)), null, center_2D, DartBoardRadius[4] * factor, DartBoardRadius[4] * factor);
+            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 255, 255)), null, center_2D, DartBoardRadius[3] * factor, DartBoardRadius[3] * factor);
+            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 0, 0)), null, center_2D, DartBoardRadius[2] * factor, DartBoardRadius[2] * factor);
+            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 255, 255)), null, center_2D, DartBoardRadius[1] * factor, DartBoardRadius[1] * factor);
+            drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(255, 255, 0, 0)), null, center_2D, DartBoardRadius[0] * factor, DartBoardRadius[0] * factor);
+
+
+            string timeStr = time.ToString("#.#");
+
+            //Showing user points:
+            FormattedText userPointsText = new FormattedText("Puntos: " + userTotalPuntuation, CultureInfo.GetCultureInfo("en-us"),
+            FlowDirection.LeftToRight, new Typeface("Arial Black"), 28, Brushes.Black);
+            drawingContext.DrawText(userPointsText, new Point(230, 10));
+
+            //Showing time:
+            FormattedText timeText = new FormattedText("Tiempo: " + timeStr, CultureInfo.GetCultureInfo("en-us"),
+            FlowDirection.LeftToRight, new Typeface("Arial Black"), 28, Brushes.Black);
+            drawingContext.DrawText(timeText, new Point(20, 10));
+
+            //If user is charging, draw estimated point
+            if(initialHand.Position.Z < currentHand.Position.Z){
+
+                //Force of the shot
+                float power = (float)currentHand.Position.Z - initialHand.Position.Z;
+                
+                //Control the arm we aim
+                if (!rightHanded)
+                {
+                    // alpha angle
+                    alpha = (float)Math.Atan2(joints[JointType.HandRight].Position.Y - joints[JointType.ShoulderRight].Position.Y,
+                                    joints[JointType.ShoulderRight].Position.Z - joints[JointType.HandRight].Position.Z);
+                    // beta angle
+                    beta = (float)Math.Atan2(joints[JointType.HandRight].Position.X - joints[JointType.ShoulderRight].Position.X,
+                                        joints[JointType.ShoulderRight].Position.Z - joints[JointType.HandRight].Position.Z);
+                }
+                else
+                {
+                    // alpha angle
+                    alpha = (float)Math.Atan2(joints[JointType.HandLeft].Position.Y - joints[JointType.ShoulderLeft].Position.Y,
+                                    joints[JointType.ShoulderLeft].Position.Z - joints[JointType.HandLeft].Position.Z);
+                    // beta angle
+                    beta = (float)Math.Atan2(joints[JointType.HandLeft].Position.X - joints[JointType.ShoulderLeft].Position.X,
+                                        joints[JointType.ShoulderLeft].Position.Z - joints[JointType.HandLeft].Position.Z);
+                }
+                
+                double g = 9.8; //Superficial gravity field
+                double y0 = initialHand.Position.Y + 1; //Initial height
+                double v0 = 47 * power; //Initial velocity, depending on the power 
+                double z = DartBoardCenter.Position.Z; //Distance of the dartboard
+                
+                //Parabolic movement equations, the intersection between X and Y flat
+                impactPoint.Position.X = (float)(z * Math.Tan(beta));
+                impactPoint.Position.Y = (float)(y0 + z * Math.Tan(alpha) / Math.Cos(beta) - 0.5 * g * z * z / (v0 * v0 * Math.Cos(alpha) * Math.Cos(alpha) * Math.Cos(beta) * Math.Cos(beta)));
+                impactPoint.Position.Z = (float)z;
+
+
+                // Convert 3D to 2D
+                DepthSpacePoint depth_impact = this.coordinateMapper.MapCameraPointToDepthSpace(impactPoint.Position);
+                Point impact_2D = new Point(depth_impact.X, depth_impact.Y);
+                
+                //If user has no arrow, do not draw impact point:
+                if (arrowInHand)
+                {
+                    //Show that user has the arrow
+                    System.String arrowPath = Path.GetFullPath(@"..\..\..\Images\mirilla.png");
+                    BitmapImage arrowImage = new BitmapImage();
+                    arrowImage.BeginInit();
+                    arrowImage.UriSource = new Uri(arrowPath);
+                    arrowImage.EndInit();
+
+                    //Size of the eyehole
+                    float sizeEyeHole =  25 / power;
+                    drawingContext.DrawImage(arrowImage, new Rect(impact_2D.X - sizeEyeHole / 2, impact_2D.Y - sizeEyeHole / 2, sizeEyeHole, sizeEyeHole));
+
+                    //Draw lines representating power:
+                    Point power_start_2D = new Point(10, 200);
+                    Point power_end_2D = new Point(10, 200 - power * 200);
+                    byte redPower = (byte)(255 - power * 200);
+                    if (redPower < 0) 
+                    {
+                        redPower = 0;
+                    }
+                    Pen line_pen = new Pen(new SolidColorBrush(Color.FromArgb(255, 255, redPower, 0)), 10);
+                    drawingContext.DrawLine(line_pen, power_start_2D, power_end_2D);
+                }
+            }
+
+            return impactPoint;
+
         }
 
-
-
-        /// <summary>
-        /// Draws an ellipse in the gesture goal
-        /// </summary>
-        /// <param name="goal">position of the hand</param>
-        /// <param name="hand">position of the hand</param>
-        /// <param name="drawingContext">drawing context to draw to</param>
-        private bool DrawGesturePoint(Joint goal, Joint hand, DrawingContext drawingContext)
-        {
-            // New factor to give deep feeling being bigger or closer
-            double ellipseSize = 2.0 / goal.Position.Z;
-            // Transform world coordinates to screen coordinates
-            DepthSpacePoint depth_goal = this.coordinateMapper.MapCameraPointToDepthSpace(goal.Position);
-            Point goal_2D = new Point(depth_goal.X, depth_goal.Y);
-
-            // If the hand is inside of the goal, return true
-            if ((hand.Position.X < goal.Position.X + 0.05 && hand.Position.X > goal.Position.X - 0.05) &&
-                (hand.Position.Y < goal.Position.Y + 0.05 && hand.Position.Y > goal.Position.Y - 0.05) &&
-                (hand.Position.Z < goal.Position.Z + 0.05 && hand.Position.Z > goal.Position.Z - 0.05))
-            {
-                drawingContext.DrawEllipse(this.gesturePointBrush, null, goal_2D, ellipseSize * HandSize, ellipseSize * HandSize);
-                return true;
-            }
-            // If not, return false
-            else
-            {
-                drawingContext.DrawEllipse(this.gesturePointBrush, null, goal_2D, ellipseSize * HandSize, ellipseSize * HandSize);
-            }
-            return false;
-        }
 
 
         /// <summary>
@@ -785,39 +1021,45 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                 (foot_left.Position.Z < FloorCenterZ + 0.3 && foot_left.Position.Z > FloorCenterZ - 0.3) &&
                 (foot_right.Position.Z < FloorCenterZ + 0.3 && foot_right.Position.Z > FloorCenterZ - 0.3))
             {
-                drawingContext.DrawEllipse(this.goalReachedBrush, null, center_floor_2D, 24, 8);
-                advicesText.Text = "¡No te muevas del sitio!";
+                drawingContext.DrawEllipse(Brushes.Red, null, center_floor_2D, 24, 8);
                 // Return the user's height
                 return head.Position.Y;
             }
             // If not, the ellipse change it color to red
             else
             {
+                //Showing advices to positioning
+                string floorAdvice = "";
                 if (head.Position.X < FloorCenterX )
                 {
                     if (head.Position.Z < FloorCenterZ)
                     {
-                        advicesText.Text = "Muévete hacia la derecha y \n hacia atrás";
+                        floorAdvice = "Muévete hacia la derecha y \n hacia atrás";
                     }
                     else if (head.Position.Z > FloorCenterZ)
                     {
-                        advicesText.Text = "Muévete hacia la derecha y \n hacia delante";
+                        floorAdvice = "Muévete hacia la derecha y \n hacia delante";
                     }
                 }
                 else if (head.Position.X > FloorCenterX)
                 {
                     if (head.Position.Z < FloorCenterZ)
                     {
-                        advicesText.Text = "Muévete hacia la izquierda y \n hacia atrás";
+                        floorAdvice = "Muévete hacia la izquierda y \n hacia atrás";
                     }
                     else if (head.Position.Z > FloorCenterZ)
                     {
-                        advicesText.Text = "Muévete hacia la izquierda y \n hacia delante";
+                        floorAdvice = "Muévete hacia la izquierda y \n hacia delante";
                     }
                 }
-                
-                
-                drawingContext.DrawEllipse(this.goalNotReachedBrush, null, center_floor_2D, 24, 8);
+
+                //Draw on the screen
+                FormattedText floorAdviceText = new FormattedText(floorAdvice, CultureInfo.GetCultureInfo("en-us"),
+                FlowDirection.LeftToRight, new Typeface("Arial Black"), 22, Brushes.DarkBlue);
+                drawingContext.DrawText(floorAdviceText, new Point(90, 20));
+
+                //Draw floor ellipse
+                drawingContext.DrawEllipse(Brushes.Red, null, center_floor_2D, 50, 8);
             }
             // When the user is in a bad floor position, return -10
             return -10;
