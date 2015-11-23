@@ -1,2 +1,2 @@
-# Practica-1-NPI
-Primera práctica de NPI con Kinect
+# Practica-2-NPI
+Segunda práctica de NPI con Kinect. 
